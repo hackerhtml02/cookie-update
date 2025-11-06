@@ -49,7 +49,7 @@
     "path": "/",
     "sameSite": "lax",
     "secure": true,
-    "session": false,
+    "session": true,
     "storeId": "0",
     "value": "cef8d48a84ffdfabb46ed4b4365b3b00425b95f68fd427cbea24638b01b43a61%7C4605373db850ee4c7466c92e9e82cb1ef6072f97631d7df5fce06435c4171bfa",
     "id": 4
@@ -62,7 +62,7 @@
     "path": "/",
     "sameSite": "lax",
     "secure": true,
-    "session": false,
+    "session": true,
     "storeId": "0",
     "value": "https%3A%2F%2Flabs.google%2Ffx%2Ftools%2Fflow%2Fproject%2F88b29456-75cf-454c-9404-d471d707d7a7",
     "id": 5
@@ -103,7 +103,7 @@
     "path": "/",
     "sameSite": "unspecified",
     "secure": false,
-    "session": false,
+    "session": true,
     "storeId": "0",
     "value": "admin%40imagescraftai.live",
     "id": 8
