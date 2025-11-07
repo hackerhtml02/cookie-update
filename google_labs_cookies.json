@@ -73,24 +73,5 @@
     "sameSite": "Lax",
     "secure": true,
     "value": "admin%40imagescraftai.live"
-  },
-  {
-    "domain": ".labs.google",
-    "httpOnly": true,
-    "name": "__Secure-next-auth.session-token",
-    "path": "/",
-    "sameSite": "Lax",
-    "secure": true,
-    "value": "eyJhbGciOiJkaXIiLCJlbmMiOiJBMjU2R0NNIn0..mbbIfAZVDS6jHovM.HfGe1FHjiGTw5uL7fhjRSdckuPE5Kky1sGnFXHVLQvybZV_4mTh1uvm4U83qsrtxUMa2uBgTmbTUhXpy4aHCDEi0rtzzk4yJk1zzZf-FaiIcGhAhuOhvtWIGkjYqCXKaIuYpD3PwdKbiL0V1MIDF5YOfTycSCGWtmwWIpB88nNE2IPY89RQfVh00UGRCa-iCexN9Jr4TaWghWNeSHEjXiRlVQ_nTOCb6AY4GNjvfGvySQ3MsWtJNhLgmMs8_5JvVPb2aQ1sj0oGV8bq6_4CjoJG6VOfo_RpL4nTK9vuCkwzWyQHAOG3mBI59EwSqXhARr2X25637AyK5f0aofTCgFFv3J89ihGdJhiaoLsz-U4W9zHEWjo5l2QofPlmPILyobR35g0RHYwiPZz7g1pp2Apet7c5c2quFwVzQpmYobTqtKuLh63wcFMRWUeoJ7QcZ1A4tV-m0ERVfInATWbXnRttzrCJBrwy1vyd2Lw2PFtTulSFrnoWObOz4KkjJRpaSRaXRxJ8Xr7HX3bToGKLk-HqSORgBarsGTKCh7PIscZ2xfQDnDsdEg21nJpYwJ4UoGfkpWsi3668sokAEgiKm_WERzq1jvsB1e5B48kAYjAKqiPW7YeGDcPmecROn65AxVLm5rTQekz0PK38sRzkn-5O6U7ucCMeSUWr94gbwjd4QMvelQ5qhG2og9VpMjB5cDIvoOxYqMlu-df9Rv1Ra3dpqu1sPrClG_g03B1z3z3c4a471g7gzRc7nRPI24gRtXr2yxPEN41eZxriwcfVc4NYbMU14wf32D3QB0P8ImrBLpdXt8cNic6Schi4PFaP8GuCgmpYpwIbMvYA6tszsUZOH5UmJIDcqpSFjB3FGximwxpk6GC6ExN3ysoairSUX1Xf_pdu4k0t69XlaERWEoI_1a2vFy7K59nhOi5735cDy2tCRL39Ya0sERGtmR_c2H4-UOfRiuzhx7pfClVfnsQIn8vHFEfPw3ESq.jhB4aOj-1LiwlyiFqsY-YQ"
-  },
-  {
-    "domain": ".labs.google",
-    "expiry": 1797064832,
-    "httpOnly": false,
-    "name": "_ga",
-    "path": "/",
-    "sameSite": "Lax",
-    "secure": false,
-    "value": "GA1.1.1123159269.1761579039"
   }
 ]
