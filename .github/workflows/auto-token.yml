@@ -1,0 +1,67 @@
+name: Auto Token Extractor
+
+on:
+  schedule:
+    - cron: "*/30 * * * *"  # har 30 minute
+  workflow_dispatch:
+
+jobs:
+  run-extractor:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Run token extractor
+        id: extract
+        run: |
+          echo "Starting job..."
+          response=$(curl -s "https://mango.sievedata.com/v2/push" \
+            -X POST \
+            -H "Content-Type: application/json" \
+            -H "X-API-Key: FuPVQWihujpMNw86fq8wswm-asNoq2BbgN_C4VhjOE4" \
+            -d '{
+              "function": "ah-aroojharis-gmail-com/google-labs-token-extractor",
+              "inputs": {
+                "github_cookies_url": "<your string>",
+                "github_repo": "<your string>",
+                "github_file_path": "<your string>",
+                "prompt_text": "<your string>"
+              }
+            }')
+
+          job_id=$(echo "$response" | jq -r '.id')
+          echo "Job ID: $job_id"
+
+          # Wait for job to complete
+          for i in {1..20}; do
+            status=$(curl -s "https://mango.sievedata.com/v2/jobs/$job_id" \
+              -H "X-API-Key: FuPVQWihujpMNw86fq8wswm-asNoq2BbgN_C4VhjOE4" | jq -r '.status')
+            echo "Status: $status"
+            if [ "$status" == "completed" ]; then
+              break
+            fi
+            echo "Waiting 30s..."
+            sleep 30
+          done
+
+          # Get output URL
+          output_url=$(curl -s "https://mango.sievedata.com/v2/jobs/$job_id" \
+            -H "X-API-Key: FuPVQWihujpMNw86fq8wswm-asNoq2BbgN_C4VhjOE4" | jq -r '.outputs.token_url')
+          echo "Output URL: $output_url"
+
+          # Fetch token text
+          token_text=$(curl -s "$output_url")
+          echo "Token received: ${#token_text} chars"
+
+          # Save token to file
+          echo "$token_text" > token_output.txt
+
+      - name: Commit and push updated token
+        run: |
+          git config user.name "github-actions"
+          git config user.email "actions@github.com"
+          git add token_output.txt
+          git commit -m "Updated token $(date)"
+          git push
