@@ -1,9 +1,7 @@
 name: Auto Token Extractor
 
 on:
-  schedule:
-    - cron: "*/30 * * * *"   # Har 30 minute automatic trigger
-  workflow_dispatch:          # Optional manual trigger
+  workflow_dispatch:          # Only manual trigger
 
 jobs:
   run-extractor:
@@ -22,7 +20,6 @@ jobs:
         id: extract
         run: |
           echo "🚀 Starting job..."
-
           # Step 1: Trigger Mango API job
           response=$(curl -s "https://mango.sievedata.com/v2/push" \
             -X POST \
@@ -67,6 +64,7 @@ jobs:
             echo "$job_json" | jq .
             exit 1
           fi
+
           echo "🔗 Output URL: $output_url"
 
           # Step 4: Fetch token text
@@ -84,23 +82,20 @@ jobs:
         run: |
           git config user.name "github-actions"
           git config user.email "actions@github.com"
-          # make sure we're up to date
           git fetch origin main
           git checkout main
           git pull --rebase origin main || true
-          # add the updated file
           git add token.txt
           git commit -m "Updated token $(date)" || echo "No new changes"
-          # force-push the latest version of token.txt
           git push origin main --force
 
-      - name: 🔁 Auto restart workflow
+      - name: 🔁 Auto restart workflow after 30 minutes
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          echo "Waiting 1800 seconds before restarting..."
-          sleep 1800
-          echo "Re-triggering workflow automatically..."
+          echo "⏳ Waiting 30 seconds (30 min) before restarting..."
+          sleep 30
+          echo "🔄 Re-triggering workflow automatically..."
           curl -X POST \
             -H "Accept: application/vnd.github+json" \
             -H "Authorization: Bearer $GITHUB_TOKEN" \
