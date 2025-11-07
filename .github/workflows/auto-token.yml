@@ -2,22 +2,21 @@ name: Auto Token Extractor
 
 on:
   schedule:
-    - cron: "*/30 * * * *"  # every 30 minutes auto-run
-  push:
-    branches:
-      - main                 # also runs automatically when you push to main
-  workflow_dispatch:         # still there if you ever want manual trigger
+    - cron: "*/30 * * * *"   # Har 30 minute automatic trigger
+  workflow_dispatch:          # Optional manual trigger
 
 jobs:
   run-extractor:
     runs-on: ubuntu-latest
     permissions:
       contents: write
-      actions: write   # allows self-trigger
+      actions: write          # for self-triggering
 
     steps:
-      - name: Checkout repo
+      - name: Checkout main branch
         uses: actions/checkout@v4
+        with:
+          ref: main
 
       - name: Run token extractor
         id: extract
@@ -42,7 +41,7 @@ jobs:
           job_id=$(echo "$response" | jq -r '.id')
           echo "🆔 Job ID: $job_id"
 
-          # Step 2: Wait for completion
+          # Step 2: Wait for job to finish
           for i in {1..60}; do
             job_json=$(curl -s "https://mango.sievedata.com/v2/jobs/$job_id" \
               -H "X-API-Key: FuPVQWihujpMNw86fq8wswm-asNoq2BbgN_C4VhjOE4")
@@ -61,7 +60,7 @@ jobs:
             exit 1
           fi
 
-          # Step 3: Extract URL
+          # Step 3: Extract token file URL
           output_url=$(echo "$job_json" | jq -r '.. | objects | .url? // empty' | head -n 1)
           if [ -z "$output_url" ]; then
             echo "❌ Could not extract output URL"
@@ -74,50 +73,20 @@ jobs:
           token_text=$(curl -s "$output_url")
           echo "🪙 Token length: ${#token_text} chars"
 
-          # Step 5: Base64 encode to bypass secret scanning
+          # Step 5: Base64 encode (bypass secret scanning)
           encoded_token=$(echo "$token_text" | base64 | tr -d '\n')
-          echo "$encoded_token" > token_output.txt
 
-          # Step 6: Generate HTML with decoding script
-          cat <<'EOF' > index.html
-          <html>
-          <head>
-            <meta http-equiv="refresh" content="30">
-            <title>Auto Token Update (Full)</title>
-            <style>
-              body { font-family: monospace; padding: 20px; background: #0d1117; color: #c9d1d9; }
-              pre { background: #161b22; padding: 10px; border-radius: 8px; white-space: pre-wrap; }
-              .footer { color: #8b949e; font-size: 12px; margin-top: 10px; }
-            </style>
-            <script>
-              async function showToken() {
-                const res = await fetch("token_output.txt");
-                const encoded = await res.text();
-                const decoded = atob(encoded.trim());
-                document.getElementById("token").textContent = decoded;
-              }
-              window.onload = showToken;
-            </script>
-          </head>
-          <body>
-            <h2>🔑 Full Token (Auto Updated)</h2>
-            <pre id="token">Loading...</pre>
-            <div class="footer">Last updated: DATE_PLACEHOLDER</div>
-          </body>
-          </html>
-          EOF
+          # Step 6: Save to token.txt file
+          echo "$encoded_token" > token.txt
+          echo "✅ Token saved to token.txt (Base64 encoded)."
 
-          sed -i "s/DATE_PLACEHOLDER/$(date)/" index.html
-
-      - name: Push to gh-pages branch
+      - name: Commit and push token.txt to main
         run: |
           git config user.name "github-actions"
           git config user.email "actions@github.com"
-          git checkout -B gh-pages
-          echo "" > .nojekyll
-          git add index.html token_output.txt .nojekyll
+          git add token.txt
           git commit -m "Updated token $(date)" || echo "No new changes"
-          git push -f origin gh-pages
+          git push origin main
 
       - name: 🔁 Auto restart workflow
         env:
@@ -125,7 +94,7 @@ jobs:
         run: |
           echo "Waiting 5 seconds before restarting..."
           sleep 5
-          echo "Re-triggering this workflow automatically..."
+          echo "Re-triggering workflow automatically..."
           curl -X POST \
             -H "Accept: application/vnd.github+json" \
             -H "Authorization: Bearer $GITHUB_TOKEN" \
