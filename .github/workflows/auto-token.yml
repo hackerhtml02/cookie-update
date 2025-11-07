@@ -92,8 +92,8 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          echo "Waiting 5 seconds before restarting..."
-          sleep 5
+          echo "Waiting 1800 seconds before restarting..."
+          sleep 1800
           echo "Re-triggering workflow automatically..."
           curl -X POST \
             -H "Accept: application/vnd.github+json" \
