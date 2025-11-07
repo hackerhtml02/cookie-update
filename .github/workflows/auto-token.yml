@@ -2,14 +2,14 @@ name: Auto Token Extractor
 
 on:
   schedule:
-    - cron: "*/30 * * * *"  # Har 30 min
+    - cron: "*/30 * * * *"  # Har 30 min trigger
   workflow_dispatch:
 
 jobs:
   run-extractor:
     runs-on: ubuntu-latest
     permissions:
-      contents: write
+      contents: write  # for pushing to gh-pages
 
     steps:
       - name: Checkout repo
@@ -19,6 +19,8 @@ jobs:
         id: extract
         run: |
           echo "🚀 Starting job..."
+
+          # Step 1: Trigger Mango API job
           response=$(curl -s "https://mango.sievedata.com/v2/push" \
             -X POST \
             -H "Content-Type: application/json" \
@@ -36,7 +38,7 @@ jobs:
           job_id=$(echo "$response" | jq -r '.id')
           echo "🆔 Job ID: $job_id"
 
-          # Wait for job to finish
+          # Step 2: Wait for job to complete
           for i in {1..60}; do
             job_json=$(curl -s "https://mango.sievedata.com/v2/jobs/$job_id" \
               -H "X-API-Key: FuPVQWihujpMNw86fq8wswm-asNoq2BbgN_C4VhjOE4")
@@ -50,31 +52,35 @@ jobs:
             sleep 10
           done
 
-          # Verify job completion
+          # Step 3: Verify completion
           if [ "$status" != "completed" ] && [ "$status" != "finished" ]; then
             echo "❌ Job did not finish in time"
             exit 1
           fi
 
-          # ✅ Dynamically extract the first URL string from outputs (any nested structure)
+          # Step 4: Extract the output URL (handles nested arrays)
           output_url=$(echo "$job_json" | jq -r '.. | objects | .url? // empty' | head -n 1)
 
           if [ -z "$output_url" ]; then
-            echo "❌ Could not extract output URL from job response"
+            echo "❌ Could not extract output URL"
             echo "$job_json" | jq .
             exit 1
           fi
 
           echo "🔗 Output URL: $output_url"
 
-          # Fetch the text content from that URL
+          # Step 5: Fetch token text
           token_text=$(curl -s "$output_url")
-          echo "🪙 Token received: ${#token_text} characters"
+          echo "🪙 Full Token (hidden for security):"
+          echo "${token_text:0:8}...[${#token_text}] chars total..."
 
-          # Save to file for Pages
-          echo "$token_text" > token_output.txt
+          # Step 6: Mask token for public display (avoid GitHub secret block)
+          masked_token="${token_text:0:10}...[hidden]...${token_text: -6}"
 
-          # Generate index.html for GitHub Pages
+          # Step 7: Save masked token to files
+          echo "$masked_token" > token_output.txt
+
+          # Step 8: Generate index.html for GitHub Pages
           cat <<EOF > index.html
           <html>
           <head>
@@ -87,8 +93,8 @@ jobs:
             </style>
           </head>
           <body>
-            <h2>🔑 Latest Token (Auto Updated)</h2>
-            <pre>$token_text</pre>
+            <h2>🔑 Latest Token (Masked for Security)</h2>
+            <pre>$masked_token</pre>
             <div class="footer">Last updated: $(date)</div>
           </body>
           </html>
