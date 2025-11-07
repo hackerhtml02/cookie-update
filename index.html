@@ -1,11 +1,25 @@
 <html>
-<body>
-  <h1>Latest Token</h1>
-  <pre id="output"></pre>
+<head>
+  <meta http-equiv="refresh" content="30">
+  <title>Auto Token Update (Full)</title>
+  <style>
+    body { font-family: monospace; padding: 20px; background: #0d1117; color: #c9d1d9; }
+    pre { background: #161b22; padding: 10px; border-radius: 8px; white-space: pre-wrap; }
+    .footer { color: #8b949e; font-size: 12px; margin-top: 10px; }
+  </style>
   <script>
-    fetch("token_output.txt")
-      .then(r => r.text())
-      .then(t => document.getElementById("output").textContent = t);
+    async function showToken() {
+      const res = await fetch("token_output.txt");
+      const encoded = await res.text();
+      const decoded = atob(encoded.trim());
+      document.getElementById("token").textContent = decoded;
+    }
+    window.onload = showToken;
   </script>
+</head>
+<body>
+  <h2>🔑 Full Token (Auto Updated)</h2>
+  <pre id="token">Loading...</pre>
+  <div class="footer">Last updated: Fri Nov  7 05:25:02 UTC 2025</div>
 </body>
 </html>
