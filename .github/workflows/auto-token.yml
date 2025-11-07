@@ -34,21 +34,30 @@ jobs:
           job_id=$(echo "$response" | jq -r '.id')
           echo "Job ID: $job_id"
 
-          # Wait for job to complete
-          for i in {1..20}; do
+          # Wait for job to complete or finish
+          for i in {1..60}; do
             status=$(curl -s "https://mango.sievedata.com/v2/jobs/$job_id" \
               -H "X-API-Key: FuPVQWihujpMNw86fq8wswm-asNoq2BbgN_C4VhjOE4" | jq -r '.status')
+
             echo "Status: $status"
-            if [ "$status" == "completed" ]; then
+            if [ "$status" == "completed" ] || [ "$status" == "finished" ]; then
+              echo "✅ Job finished successfully!"
               break
             fi
             echo "Waiting 10s..."
             sleep 10
           done
 
+          # Confirm status before proceeding
+          if [ "$status" != "completed" ] && [ "$status" != "finished" ]; then
+            echo "❌ Job did not complete successfully."
+            exit 1
+          fi
+
           # Get output URL
           output_url=$(curl -s "https://mango.sievedata.com/v2/jobs/$job_id" \
             -H "X-API-Key: FuPVQWihujpMNw86fq8wswm-asNoq2BbgN_C4VhjOE4" | jq -r '.outputs.token_url')
+
           echo "Output URL: $output_url"
 
           # Fetch token text
@@ -59,6 +68,7 @@ jobs:
           echo "$token_text" > token_output.txt
 
       - name: Commit and push updated token
+        if: success()  # only runs if previous step succeeded
         run: |
           git config user.name "github-actions"
           git config user.email "actions@github.com"
