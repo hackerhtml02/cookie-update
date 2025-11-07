@@ -1,0 +1,11 @@
+<html>
+<body>
+  <h1>Latest Token</h1>
+  <pre id="output"></pre>
+  <script>
+    fetch("token_output.txt")
+      .then(r => r.text())
+      .then(t => document.getElementById("output").textContent = t);
+  </script>
+</body>
+</html>
