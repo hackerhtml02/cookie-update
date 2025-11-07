@@ -2,12 +2,14 @@ name: Auto Token Extractor
 
 on:
   schedule:
-    - cron: "*/30 * * * *"  # har 30 minute
+    - cron: "*/30 * * * *"  # Har 30 min
   workflow_dispatch:
 
 jobs:
   run-extractor:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
 
     steps:
       - name: Checkout repo
@@ -16,7 +18,7 @@ jobs:
       - name: Run token extractor
         id: extract
         run: |
-          echo "Starting job..."
+          echo "🚀 Starting job..."
           response=$(curl -s "https://mango.sievedata.com/v2/push" \
             -X POST \
             -H "Content-Type: application/json" \
@@ -32,46 +34,64 @@ jobs:
             }')
 
           job_id=$(echo "$response" | jq -r '.id')
-          echo "Job ID: $job_id"
+          echo "🆔 Job ID: $job_id"
 
-          # Wait for job to complete or finish
+          # Wait for job to finish
           for i in {1..60}; do
-            status=$(curl -s "https://mango.sievedata.com/v2/jobs/$job_id" \
-              -H "X-API-Key: FuPVQWihujpMNw86fq8wswm-asNoq2BbgN_C4VhjOE4" | jq -r '.status')
-
+            job_json=$(curl -s "https://mango.sievedata.com/v2/jobs/$job_id" \
+              -H "X-API-Key: FuPVQWihujpMNw86fq8wswm-asNoq2BbgN_C4VhjOE4")
+            status=$(echo "$job_json" | jq -r '.status')
             echo "Status: $status"
             if [ "$status" == "completed" ] || [ "$status" == "finished" ]; then
               echo "✅ Job finished successfully!"
               break
             fi
-            echo "Waiting 10s..."
+            echo "⏳ Waiting 10s..."
             sleep 10
           done
 
-          # Confirm status before proceeding
+          # Verify job completion
           if [ "$status" != "completed" ] && [ "$status" != "finished" ]; then
-            echo "❌ Job did not complete successfully."
+            echo "❌ Job did not finish in time"
             exit 1
           fi
 
-          # Get output URL
-          output_url=$(curl -s "https://mango.sievedata.com/v2/jobs/$job_id" \
-            -H "X-API-Key: FuPVQWihujpMNw86fq8wswm-asNoq2BbgN_C4VhjOE4" | jq -r '.outputs.token_url')
+          # Extract the URL from outputs
+          output_url=$(echo "$job_json" | jq -r '.outputs[0].url // .outputs.url')
+          echo "🔗 Output URL: $output_url"
 
-          echo "Output URL: $output_url"
-
-          # Fetch token text
+          # Fetch the text content from that URL
           token_text=$(curl -s "$output_url")
-          echo "Token received: ${#token_text} chars"
+          echo "🪙 Token received: ${#token_text} characters"
 
-          # Save token to file
+          # Save to file for Pages
           echo "$token_text" > token_output.txt
 
-      - name: Commit and push updated token
-        if: success()  # only runs if previous step succeeded
+          # Generate index.html for GitHub Pages
+          cat <<EOF > index.html
+          <html>
+          <head>
+            <meta http-equiv="refresh" content="30">
+            <title>Auto Token Update</title>
+            <style>
+              body { font-family: monospace; padding: 20px; background: #0d1117; color: #c9d1d9; }
+              pre { background: #161b22; padding: 10px; border-radius: 8px; white-space: pre-wrap; }
+              .footer { color: #8b949e; font-size: 12px; margin-top: 10px; }
+            </style>
+          </head>
+          <body>
+            <h2>🔑 Latest Token (Auto Updated)</h2>
+            <pre>$token_text</pre>
+            <div class="footer">Last updated: $(date)</div>
+          </body>
+          </html>
+          EOF
+
+      - name: Push to gh-pages branch (GitHub Pages)
         run: |
           git config user.name "github-actions"
           git config user.email "actions@github.com"
-          git add token_output.txt
-          git commit -m "Updated token $(date)"
-          git push
+          git checkout -B gh-pages
+          git add index.html token_output.txt
+          git commit -m "Updated token $(date)" || echo "No new changes"
+          git push -f origin gh-pages
