@@ -2,7 +2,7 @@ name: Auto Token Extractor
 
 on:
   schedule:
-    - cron: "*/3 * * * *"  # every 30 minutes auto-run
+    - cron: "*/30 * * * *"  # every 30 minutes auto-run
   push:
     branches:
       - main                 # also runs automatically when you push to main
