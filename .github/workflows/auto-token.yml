@@ -84,9 +84,15 @@ jobs:
         run: |
           git config user.name "github-actions"
           git config user.email "actions@github.com"
+          # make sure we're up to date
+          git fetch origin main
+          git checkout main
+          git pull --rebase origin main || true
+          # add the updated file
           git add token.txt
           git commit -m "Updated token $(date)" || echo "No new changes"
-          git push origin main
+          # force-push the latest version of token.txt
+          git push origin main --force
 
       - name: 🔁 Auto restart workflow
         env:
