@@ -24,10 +24,10 @@ jobs:
             -d '{
               "function": "ah-aroojharis-gmail-com/google-labs-token-extractor",
               "inputs": {
-                "github_cookies_url": "<your string>",
-                "github_repo": "<your string>",
-                "github_file_path": "<your string>",
-                "prompt_text": "<your string>"
+                "github_cookies_url": "https://raw.githubusercontent.com/hackerhtml02/cookie-update/main/google_labs_cookies.json",
+                "github_repo": "hackerhtml02/cookie-update",
+                "github_file_path": "google_labs_cookies.json",
+                "prompt_text": "cute cat"
               }
             }')
 
@@ -42,8 +42,8 @@ jobs:
             if [ "$status" == "completed" ]; then
               break
             fi
-            echo "Waiting 30s..."
-            sleep 30
+            echo "Waiting 10s..."
+            sleep 10
           done
 
           # Get output URL
