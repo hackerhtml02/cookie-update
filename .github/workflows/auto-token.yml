@@ -56,8 +56,15 @@ jobs:
             exit 1
           fi
 
-          # Extract the URL from outputs
-          output_url=$(echo "$job_json" | jq -r '.outputs[0].url // .outputs.url')
+          # ✅ Dynamically extract the first URL string from outputs (any nested structure)
+          output_url=$(echo "$job_json" | jq -r '.. | objects | .url? // empty' | head -n 1)
+
+          if [ -z "$output_url" ]; then
+            echo "❌ Could not extract output URL from job response"
+            echo "$job_json" | jq .
+            exit 1
+          fi
+
           echo "🔗 Output URL: $output_url"
 
           # Fetch the text content from that URL
