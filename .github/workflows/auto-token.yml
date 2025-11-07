@@ -2,7 +2,7 @@ name: Auto Token Extractor
 
 on:
   schedule:
-    - cron: "*/30 * * * *"  # Har 30 minute trigger
+    - cron: "*/5 * * * *"  # Har 30 minute trigger
   workflow_dispatch:
 
 jobs:
