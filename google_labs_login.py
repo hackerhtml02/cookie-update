@@ -71,6 +71,23 @@ def google_labs_login_and_capture_token(github_repo, prompt_text="Generate a cre
         if token and token.lower().startswith("bearer "):
             token = token.split(" ", 1)[1].strip()
         return token
+    
+    def save_debug_screenshot(name):
+        try:
+            screenshot_path = f"/tmp/{name}.png"
+            driver.save_screenshot(screenshot_path)
+            print(f"📸 Screenshot saved: {screenshot_path}")
+        except:
+            pass
+    
+    def save_page_source(name):
+        try:
+            html_path = f"/tmp/{name}.html"
+            with open(html_path, "w", encoding="utf-8") as f:
+                f.write(driver.page_source)
+            print(f"📄 Page source saved: {html_path}")
+        except:
+            pass
 
     try:
         print("🌐 Opening Google Labs...")
@@ -95,119 +112,133 @@ def google_labs_login_and_capture_token(github_repo, prompt_text="Generate a cre
         print("✅ Logged in successfully!")
         time.sleep(5)
         
-        # Check for "Get started" button and click it
+        # Save debug info
+        save_debug_screenshot("after_login")
+        save_page_source("after_login")
+        
+        # Inject interceptor early
+        inject_interceptor()
+        
+        # Check for "Get started" button
         print("🔍 Checking for 'Get started' button...")
         get_started_selectors = [
-            "//button[contains(., 'Get started')]",
-            "button.sc-c177465c-1.iRlAqv.sc-d458a0c5-2.dzCIZN",
+            "//button[contains(translate(., 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz'), 'get started')]",
+            "//button[contains(translate(., 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz'), 'start')]",
             "button[class*='iRlAqv']",
-            "//button[text()='Get started']",
+            "//button[contains(@class, 'sc-c177465c')]",
         ]
         
-        get_started_clicked = False
         for sel in get_started_selectors:
             try:
                 if sel.startswith("//"):
-                    el = wait.until(EC.element_to_be_clickable((By.XPATH, sel)))
+                    el = driver.find_element(By.XPATH, sel)
                 else:
-                    el = wait.until(EC.element_to_be_clickable((By.CSS_SELECTOR, sel)))
-                el.click()
+                    el = driver.find_element(By.CSS_SELECTOR, sel)
+                driver.execute_script("arguments[0].scrollIntoView(true);", el)
+                time.sleep(1)
+                driver.execute_script("arguments[0].click();", el)
                 print(f"✅ Clicked 'Get started' button: {sel}")
-                get_started_clicked = True
-                time.sleep(3)
+                time.sleep(4)
+                save_debug_screenshot("after_get_started")
                 break
             except:
                 continue
         
-        if not get_started_clicked:
-            print("ℹ️ 'Get started' button not found - proceeding to next step")
+        # Try direct navigation to project page
+        print("🔄 Trying direct navigation to project page...")
+        driver.get("https://labs.google/fx/tools/flow/projects")
+        time.sleep(5)
+        save_debug_screenshot("project_page")
         
-        # Inject interceptor
+        # Re-inject interceptor after navigation
         inject_interceptor()
         
-        # Click New Project button
-        print("🖱️ Clicking New Project...")
-        new_proj_selectors = [
-            "//button[contains(., 'New project')]",
-            "//div[contains(., 'New project')]",
-            "button[data-testid='new-project-button']",
-            "//button[contains(@class, 'new-project')]",
-            "button.sc-c177465c-1",
-        ]
-        clicked = False
-        for sel in new_proj_selectors:
+        # Look for any button or clickable element
+        print("🔍 Searching for interactive elements...")
+        all_buttons = driver.find_elements(By.CSS_SELECTOR, "button, a[role='button'], div[role='button']")
+        print(f"📊 Found {len(all_buttons)} buttons/clickable elements")
+        
+        for i, btn in enumerate(all_buttons[:10]):
             try:
-                if sel.startswith("//"):
-                    el = wait.until(EC.element_to_be_clickable((By.XPATH, sel)))
-                else:
-                    el = wait.until(EC.element_to_be_clickable((By.CSS_SELECTOR, sel)))
-                el.click()
-                print(f"✅ Clicked New Project: {sel}")
-                clicked = True
-                break
-            except:
+                text = btn.text.lower() if btn.text else ""
+                print(f"  Button {i+1}: '{text[:50]}...'")
+                if any(kw in text for kw in ["new", "create", "project", "start"]):
+                    print(f"  ✅ Clicking button {i+1}: '{text[:50]}'")
+                    driver.execute_script("arguments[0].scrollIntoView(true);", btn)
+                    time.sleep(0.5)
+                    driver.execute_script("arguments[0].click();", btn)
+                    time.sleep(3)
+                    save_debug_screenshot(f"after_button_{i+1}")
+                    break
+            except Exception as e:
+                print(f"  ⚠️ Error with button {i+1}: {e}")
                 continue
         
-        if not clicked:
-            print("⚠️ Warning: Could not click New Project button")
-        
-        time.sleep(4)
-        
-        # Enter prompt to trigger API requests
-        print("📝 Entering prompt...")
-        try:
-            fields = driver.find_elements(By.CSS_SELECTOR, "textarea, input[type='text'], div[role='textbox']")
-            if fields:
-                fields[0].send_keys(prompt_text)
-                fields[0].send_keys(Keys.ENTER)
-                print("✅ Prompt submitted")
-                time.sleep(2)
-        except Exception as e:
-            print(f"⚠️ Prompt entry failed: {e}")
-        
-        # Wait for token to be captured
+        # Wait for token
         print("⏳ Waiting for Authorization token...")
         token = None
-        for i in range(40):
+        for i in range(60):
             token = get_token()
             if token:
                 print(f"✅ Token captured after {i+1} seconds!")
                 break
             time.sleep(1)
         
+        # If no token, try triggering API by typing in any input field
         if not token:
-            # Last attempt - try to find and click any interactive element to trigger API
-            print("🔄 Last attempt - trying to trigger API calls...")
+            print("🔄 Attempting to trigger API by interacting with input fields...")
             try:
-                clickable_elements = driver.find_elements(By.CSS_SELECTOR, "button, a, [role='button']")
-                for elem in clickable_elements[:5]:
+                inputs = driver.find_elements(By.CSS_SELECTOR, "input[type='text'], textarea, div[contenteditable='true'], div[role='textbox']")
+                print(f"📊 Found {len(inputs)} input fields")
+                for inp in inputs[:5]:
                     try:
-                        elem.click()
-                        time.sleep(2)
+                        driver.execute_script("arguments[0].scrollIntoView(true);", inp)
+                        driver.execute_script("arguments[0].focus();", inp)
+                        driver.execute_script("arguments[0].value = 'test';", inp)
+                        inp.send_keys(Keys.ENTER)
+                        print("  ✅ Triggered input field")
+                        time.sleep(3)
                         token = get_token()
                         if token:
-                            print("✅ Token captured after clicking interactive element!")
+                            print("✅ Token captured after input interaction!")
                             break
                     except:
                         continue
+            except Exception as e:
+                print(f"⚠️ Input interaction failed: {e}")
+        
+        # Last resort - try to navigate to a known API endpoint
+        if not token:
+            print("🔄 Last resort - trying to load API endpoint directly...")
+            try:
+                driver.execute_script("""
+                fetch('https://labs.google/fx/api/v1/projects', {
+                    method: 'GET',
+                    headers: {'Authorization': 'Bearer dummy'}
+                }).catch(() => {});
+                """)
+                time.sleep(5)
+                token = get_token()
             except:
                 pass
         
         if not token:
-            raise RuntimeError("❌ No token captured - check if profile is valid")
+            save_page_source("final_page")
+            save_debug_screenshot("final_page")
+            raise RuntimeError("❌ No token captured - debug files saved to /tmp/")
         
-        # Encode token in Base64
+        # Encode token
         print("🔐 Encoding token with Base64...")
         encoded_token = base64.b64encode(token.encode('utf-8')).decode('utf-8')
         
-        # Save encoded token to file
+        # Save encoded token
         token_path = "/tmp/bearer_token.txt"
         with open(token_path, "w", encoding="utf-8") as f:
             f.write(encoded_token)
         print(f"💾 Base64 encoded token saved to: {token_path}")
         print(f"📊 Token length: {len(token)} → Encoded length: {len(encoded_token)}")
         
-        # Upload token to GitHub Release
+        # Upload to GitHub
         print("📤 Uploading encoded token to GitHub Release...")
         upload_to_github_release(github_repo, token_path, GITHUB_TOKEN)
         
@@ -215,6 +246,8 @@ def google_labs_login_and_capture_token(github_repo, prompt_text="Generate a cre
 
     except Exception as e:
         print(f"❌ Error: {e}")
+        save_page_source("error_page")
+        save_debug_screenshot("error_page")
         raise
     finally:
         try:
@@ -230,7 +263,6 @@ def upload_to_github_release(github_repo, file_path, github_token):
     headers = {"Authorization": f"token {github_token}"}
     release_api = f"https://api.github.com/repos/{github_repo}/releases"
     
-    # Try to create release
     data = {
         "tag_name": github_release_tag,
         "name": github_release_name,
@@ -239,13 +271,9 @@ def upload_to_github_release(github_repo, file_path, github_token):
     resp = requests.post(release_api, headers=headers, json=data)
 
     if resp.status_code not in [200, 201]:
-        # Release might already exist, fetch it
         existing = requests.get(f"{release_api}/tags/{github_release_tag}", headers=headers)
         if existing.status_code == 200:
-            release_id = existing.json()["id"]
             upload_url = existing.json()["upload_url"].split("{")[0]
-            
-            # Delete old assets
             assets = existing.json().get("assets", [])
             for asset in assets:
                 if asset["name"] == "bearer_token.txt":
@@ -257,7 +285,6 @@ def upload_to_github_release(github_repo, file_path, github_token):
     else:
         upload_url = resp.json()["upload_url"].split("{")[0]
 
-    # Upload token file
     with open(file_path, "rb") as f:
         upload_resp = requests.post(
             f"{upload_url}?name=bearer_token.txt",
