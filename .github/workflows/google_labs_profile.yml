@@ -42,10 +42,10 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.PAT_TOKEN }}
         run: python google_labs_login.py
 
-      - name: Upload token as artifact (backup)
-        if: always()
+      - name: Upload debug files
+        if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: bearer-token-base64
-          path: /tmp/bearer_token.txt
+          name: debug-files
+          path: /tmp/*.png
           retention-days: 1
