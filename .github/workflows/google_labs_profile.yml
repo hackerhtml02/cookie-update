@@ -1,14 +1,17 @@
-name: Google Labs Login and Upload
+name: Google Labs Token Capture (Hourly)
 
 on:
-  workflow_dispatch:
+  workflow_dispatch:  # Manual trigger
+  schedule:
+    - cron: '0 * * * *'  # Runs every hour
 
 permissions:
-  contents: write  # ✅ Required for release creation
+  contents: write
 
 jobs:
-  run-login-upload:
+  capture-token:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
 
     steps:
       - name: Checkout repository
@@ -32,9 +35,17 @@ jobs:
       - name: Install dependencies
         run: pip install selenium requests
 
-      - name: Run Google Labs Automation
+      - name: Run Google Labs Token Capture
         env:
           EMAIL: ${{ secrets.EMAIL }}
           PASSWORD: ${{ secrets.PASSWORD }}
           GITHUB_TOKEN: ${{ secrets.PAT_TOKEN }}
         run: python google_labs_login.py
+
+      - name: Upload token as artifact (backup)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: bearer-token
+          path: /tmp/bearer_token.txt
+          retention-days: 1
