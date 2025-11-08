@@ -2,11 +2,9 @@ name: Google Labs Login and Upload
 
 on:
   workflow_dispatch:
-  schedule:
-    - cron: "0 2 * * *"  # runs daily at 2am UTC
 
 permissions:
-  contents: write
+  contents: write  # ✅ Required for release creation
 
 jobs:
   run-login-upload:
@@ -24,8 +22,7 @@ jobs:
           echo 'deb [arch=amd64 signed-by=/usr/share/keyrings/google-linux-signing-key.gpg] http://dl.google.com/linux/chrome/deb/ stable main' | sudo tee /etc/apt/sources.list.d/google-chrome.list
           sudo apt-get update
           sudo apt-get install -y google-chrome-stable
-          echo "✅ Google Chrome installed successfully"
-
+          google-chrome --version
 
       - name: Set up Python
         uses: actions/setup-python@v5
