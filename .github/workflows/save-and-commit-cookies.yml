@@ -1,34 +1,65 @@
-name: Save Google Labs Cookies
+name: Save Google Labs Session State
 
 on:
   workflow_dispatch:
 
+permissions:
+  contents: write        # allow pushing commits
+  id-token: write
+
 jobs:
-  login:
+  login-and-commit:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout repo
+      - name: Checkout repository (with write permissions)
         uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+          fetch-depth: 0
 
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.10"
 
-      - name: Install dependencies
+      - name: Install Playwright
         run: |
-          pip install playwright
+          python -m pip install --upgrade pip
+          pip install playwright==1.41.0
           playwright install chromium
 
-      - name: Run login script
+      - name: Run login script (save state)
         env:
           GOOGLE_EMAIL: ${{ secrets.GOOGLE_EMAIL }}
           GOOGLE_PASSWORD: ${{ secrets.GOOGLE_PASSWORD }}
-        run: python login.py
+        run: |
+          python login.py
+        # if this step fails you'll get failure logs
 
-      - name: Upload cookies as artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: google-cookies
-          path: cookies.json
+      - name: Show saved file (debug)
+        run: |
+          if [ -f google_state.json ]; then
+            echo "google_state.json exists, size:"
+            ls -lh google_state.json
+          else
+            echo "google_state.json NOT found"
+            exit 1
+          fi
+
+      - name: Configure Git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Commit and push google_state.json (if changed)
+        run: |
+          git add google_state.json || true
+          # Only commit if there are changes
+          if ! git diff --cached --quiet; then
+            git commit -m "chore: update google_state.json (automated by workflow)"
+            git push origin HEAD
+            echo "✅ Pushed google_state.json to repo"
+          else
+            echo "No changes to commit"
+          fi
