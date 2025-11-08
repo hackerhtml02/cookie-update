@@ -1,8 +1,8 @@
 from playwright.sync_api import sync_playwright
 import json, os, time
 
-EMAIL = os.getenv("GOOGLE_EMAIL")
-PASSWORD = os.getenv("GOOGLE_PASSWORD")
+EMAIL = "muhammadharis8765@imagescraftai.live"
+PASSWORD = "HafsaHaris11$$"
 
 def login_and_save_cookies():
     with sync_playwright() as p:
@@ -22,21 +22,24 @@ def login_and_save_cookies():
                 except:
                     continue
 
+
             # Email
             page.wait_for_selector('input[type="email"]', timeout=15000)
+            time.sleep(8)
             page.locator('input[type="email"]').fill(EMAIL)
             page.keyboard.press("Enter")
             page.wait_for_timeout(4000)
 
-            # Password
-            page.wait_for_url("**/signin/v2/sl/pwd*", timeout=15000)
-            page.wait_for_selector('input[name="Passwd"]', timeout=15000)
-            page.locator('input[name="Passwd"]').fill(PASSWORD)
+            page.wait_for_selector('input[type="password"]', timeout=15000)
+            time.sleep(8)
+            page.locator('input[type="password"]').fill(PASSWORD)
             page.keyboard.press("Enter")
+            time.sleep(8)
             page.wait_for_timeout(8000)
 
         # Save session
         context.storage_state(path="google_state.json")
         print("✅ Session saved to google_state.json")
         browser.close()
+
 login_and_save_cookies()
