@@ -45,11 +45,13 @@ def google_labs_login_and_upload(github_repo, github_release_tag="v1.0.0", githu
             email_box = wait.until(EC.presence_of_element_located((By.ID, "identifierId")))
             email_box.send_keys(EMAIL)
             email_box.send_keys(Keys.ENTER)
+            print("Email enter successfully!")
             time.sleep(3)
 
             pwd_box = wait.until(EC.presence_of_element_located((By.NAME, "Passwd")))
             pwd_box.send_keys(PASSWORD)
             pwd_box.send_keys(Keys.ENTER)
+            print("Password enter successfully!")
             time.sleep(8)
 
         print("Logged in successfully!")
