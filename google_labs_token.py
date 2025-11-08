@@ -1,4 +1,10 @@
 # google_labs_token.py
+# Email is hardcoded here (as requested).
+# Password must be provided via environment variable PASSWORD or GOOGLE_PASSWORD.
+
+import os
+import time
+import sys
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
@@ -8,7 +14,20 @@ from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.chrome.options import Options
 from webdriver_manager.chrome import ChromeDriverManager
 from selenium.common.exceptions import TimeoutException
-import os, time
+
+# -------------------------
+# HARDCODED EMAIL (replace if you want)
+# -------------------------
+HARDCODE_EMAIL = "muhammadharis8765@imagescraftai.live"  # <- hardcoded email here
+# -------------------------
+
+def get_password():
+    # prefer explicit PASSWORD env var, fall back to GOOGLE_PASSWORD
+    pwd = os.getenv("PASSWORD") or os.getenv("GOOGLE_PASSWORD")
+    if not pwd:
+        print("❌ ERROR: Password not found in environment. Set PASSWORD or GOOGLE_PASSWORD.")
+        sys.exit(1)
+    return pwd
 
 class GoogleLabsTokenExtractor:
     def __init__(self, email, password, headless=True):
@@ -27,10 +46,16 @@ class GoogleLabsTokenExtractor:
         if self.headless:
             options.add_argument("--headless=new")
 
+        # webdriver-manager will fetch a compatible chromedriver
         service = Service(ChromeDriverManager().install())
         self.driver = webdriver.Chrome(service=service, options=options)
         self.wait = WebDriverWait(self.driver, 30)
-        print("✅ Chrome WebDriver started successfully.")
+        # Print versions for debugging in Actions logs
+        try:
+            print("ChromeDriver:", self.driver.capabilities.get("browserVersion") or self.driver.capabilities)
+        except Exception:
+            pass
+        print("✅ Chrome WebDriver started.")
 
     def setup_network_interception(self):
         js = """
@@ -42,17 +67,22 @@ class GoogleLabsTokenExtractor:
             window.fetch = function() {
                 const args = Array.from(arguments);
                 const options = args[1] || {};
-                if (options.headers) {
-                    const getHeader = (h) => (typeof options.headers.get === 'function') ? options.headers.get(h) : options.headers[h];
-                    const val = getHeader('authorization') || getHeader('Authorization');
-                    if (val) window.__capturedAuthToken = val;
-                }
+                try {
+                    if (options.headers) {
+                        const getHeader = (h) => (typeof options.headers.get === 'function') ? options.headers.get(h) : options.headers[h];
+                        const val = getHeader('authorization') || getHeader('Authorization');
+                        if (val) window.__capturedAuthToken = val;
+                    }
+                } catch (e) {}
                 return originalFetch.apply(this, arguments);
             };
         })();
         """
-        self.driver.execute_script(js)
-        print("🛠️ Network interception (fetch wrapper) installed.")
+        try:
+            self.driver.execute_script(js)
+            print("🛠️ Network interception installed.")
+        except Exception as e:
+            print("⚠️ Could not inject fetch wrapper:", e)
 
     def get_captured_token(self):
         try:
@@ -66,34 +96,47 @@ class GoogleLabsTokenExtractor:
     def open_labs_and_signin(self):
         self.driver.get("https://labs.google/fx/tools/flow")
         time.sleep(2)
+
         if "sign in" not in self.driver.page_source.lower():
-            print("✅ Already signed in or no sign-in prompt.")
+            print("✅ Possibly already signed in / no sign-in prompt.")
             return True
 
-        # Try to click sign in button
-        for xp in [
+        btn_xpaths = [
             "//button[contains(., 'Sign in with Google')]",
             "//span[contains(., 'Sign in with Google')]/ancestor::button",
             "//button[contains(., 'Sign in')]",
-            "//a[contains(., 'Sign in')]"
-        ]:
+            "//a[contains(., 'Sign in')]",
+            "//a[contains(., 'Sign in with Google')]",
+        ]
+        clicked = False
+        for xp in btn_xpaths:
             try:
                 el = self.wait.until(EC.element_to_be_clickable((By.XPATH, xp)))
-                el.click()
-                print("🔑 Clicked Sign In button.")
+                try:
+                    el.click()
+                except Exception:
+                    self.driver.execute_script("arguments[0].click();", el)
+                clicked = True
+                print("🔑 Clicked sign-in button:", xp)
                 break
             except Exception:
                 continue
 
-        # Perform email and password login
+        if not clicked:
+            print("⚠️ Sign-in button not found; opening Google sign-in directly.")
+            self.driver.get("https://accounts.google.com/v3/signin/identifier")
+            time.sleep(2)
+
         try:
             email_input = self.wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, "input[type='email']")))
+            email_input.clear()
             email_input.send_keys(self.email)
             email_input.send_keys(Keys.ENTER)
             print("📧 Email entered.")
             time.sleep(2)
 
             passwd_input = self.wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, "input[type='password']")))
+            passwd_input.clear()
             passwd_input.send_keys(self.password)
             passwd_input.send_keys(Keys.ENTER)
             print("🔒 Password submitted.")
@@ -102,43 +145,56 @@ class GoogleLabsTokenExtractor:
         except TimeoutException:
             print("❌ Login failed or 2FA required.")
             return False
+        except Exception as e:
+            print("❌ Exception during login:", e)
+            return False
 
     def create_new_project_and_trigger_requests(self, prompt_text="cute cat"):
         try:
             self.setup_network_interception()
-            # Try clicking 'New project'
-            for sel in [
+            selectors = [
                 "//button[contains(text(),'New project')]",
+                "//div[contains(text(),'New project')]",
                 "button[data-testid='new-project-button']",
-            ]:
+                "button[aria-label*='New project']"
+            ]
+            for sel in selectors:
                 try:
                     el = self.wait.until(EC.element_to_be_clickable((By.XPATH, sel)))
-                    el.click()
-                    print("📁 Clicked 'New project'.")
+                    self.driver.execute_script("arguments[0].scrollIntoView(true);", el)
+                    try:
+                        el.click()
+                    except Exception:
+                        self.driver.execute_script("arguments[0].click();", el)
+                    print("📁 Clicked 'New project' using:", sel)
                     break
                 except Exception:
                     continue
 
-            # Try typing prompt
+            time.sleep(2)
             try:
-                input_field = self.driver.find_element(By.CSS_SELECTOR, "textarea, input[type='text']")
-                input_field.send_keys(prompt_text)
-                input_field.send_keys(Keys.ENTER)
-                print(f"✏️ Prompt entered: {prompt_text}")
-            except Exception:
-                print("⚠️ Could not find input field for prompt.")
+                input_candidates = self.driver.find_elements(By.CSS_SELECTOR, "textarea, input[type='text']")
+                if input_candidates:
+                    el = input_candidates[0]
+                    el.click()
+                    el.clear()
+                    el.send_keys(prompt_text)
+                    el.send_keys(Keys.ENTER)
+                    print("✏️ Prompt submitted:", prompt_text)
+            except Exception as e:
+                print("⚠️ Could not submit prompt:", e)
 
-            # Wait for token
-            print("⏳ Waiting for token...")
+            print("⏳ Waiting up to 40s for token...")
             for _ in range(40):
                 tok = self.get_captured_token()
                 if tok:
-                    print("🎯 Token captured!")
+                    print("🎯 Token captured.")
                     return tok
                 time.sleep(1)
+            print("❌ No token captured.")
             return None
         except Exception as e:
-            print("❌ Error capturing token:", e)
+            print("❌ Error during trigger:", e)
             return None
 
     def run_and_get_token(self, prompt_text="cute cat"):
@@ -156,7 +212,6 @@ class GoogleLabsTokenExtractor:
                     f.write(token)
                 print("💾 Token saved to bearer_token.txt")
                 return token
-            print("❌ No token captured.")
             return None
         finally:
             self.close()
@@ -167,14 +222,10 @@ class GoogleLabsTokenExtractor:
         except Exception:
             pass
 
-
 if __name__ == "__main__":
-    EMAIL = "muhammadharis8765@imagescraftai.live"
-    PASSWORD = os.getenv("PASSWORD")
-    if not EMAIL or not PASSWORD:
-        print("❌ Please set EMAIL and PASSWORD environment variables.")
-        exit(1)
-
+    EMAIL = HARDCODE_EMAIL
+    PASSWORD = get_password()
+    print(f"Using email: {EMAIL}  (hardcoded in script)")
     extractor = GoogleLabsTokenExtractor(EMAIL, PASSWORD, headless=True)
     token = extractor.run_and_get_token(prompt_text="cute cat")
     if token:
