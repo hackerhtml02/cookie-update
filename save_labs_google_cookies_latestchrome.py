@@ -1,6 +1,7 @@
 import os
 import time
 import json
+import subprocess
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
@@ -9,17 +10,49 @@ from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.chrome.options import Options
 from selenium.common.exceptions import TimeoutException
 
-# --- Configuration ---
-EMAIL = "muhammadharis8765@imagescraftai.live"  # your email
-OUTPUT_FILE = "cookies.json"                    # output filename
-# ----------------------
+# ─────────────────────────────
+# Configuration
+# ─────────────────────────────
+EMAIL = "muhammadharis8765@imagescraftai.live"
+OUTPUT_FILE = "cookies.json"
 
+
+# ─────────────────────────────
+# Install latest Chrome (Ubuntu)
+# ─────────────────────────────
+def install_latest_chrome():
+    try:
+        print("🔄 Installing latest Google Chrome...")
+        subprocess.run([
+            "bash", "-c",
+            """
+            sudo apt-get update -y &&
+            sudo apt-get install -y wget gnupg &&
+            wget -q -O - https://dl.google.com/linux/linux_signing_key.pub | sudo apt-key add - &&
+            echo "deb [arch=amd64] http://dl.google.com/linux/chrome/deb/ stable main" | \
+                sudo tee /etc/apt/sources.list.d/google-chrome.list &&
+            sudo apt-get update -y &&
+            sudo apt-get install -y google-chrome-stable
+            """
+        ], check=True)
+        print("✅ Latest Chrome installed successfully.")
+    except Exception as e:
+        print("⚠️ Chrome installation failed or already installed:", e)
+
+
+# ─────────────────────────────
+# Get password from environment
+# ─────────────────────────────
 def get_password_from_env():
-    pwd = os.environ.get("PASSWORD")
-    if not pwd:
-        raise SystemExit("❌ PASSWORD environment variable not found.")
-    return pwd
+    pw = os.environ.get("PASSWORD")
+    if not pw:
+        raise SystemExit("❌ PASSWORD environment variable missing.")
+    return pw
 
+
+# ─────────────────────────────
+# Selenium Login Handler
+# ─────────────────────────────
 class GoogleLabsLogin:
     def __init__(self, email, password, headless=True):
         self.email = email
@@ -39,14 +72,11 @@ class GoogleLabsLogin:
             options.add_argument("--headless=new")
         options.add_experimental_option("excludeSwitches", ["enable-automation"])
         options.add_experimental_option("useAutomationExtension", False)
-
-        # ✅ Selenium Manager handles driver automatically
         self.driver = webdriver.Chrome(options=options)
         self.wait = WebDriverWait(self.driver, 30)
-        print("✅ Chrome driver started (Selenium Manager).")
+        print("✅ Selenium started with latest Google Chrome (via Selenium Manager).")
 
-    def click_sign_in(self):
-        """Try to click 'Sign in' or 'Sign in with Google' buttons."""
+    def click_sign_in_button(self):
         xpaths = [
             "//button[contains(., 'Sign in with Google')]",
             "//span[contains(., 'Sign in with Google')]/ancestor::button",
@@ -61,61 +91,56 @@ class GoogleLabsLogin:
                 return True
             except Exception:
                 continue
-        print("⚠️ Sign-in button not found.")
         return False
 
     def login(self):
-        print("🌐 Opening Google Labs login page...")
+        print("🌐 Navigating to Google Labs...")
         self.driver.get("https://labs.google/fx/tools/flow")
         time.sleep(2)
-
         if "sign in" not in self.driver.page_source.lower():
             print("✅ Already logged in.")
             return True
 
-        if not self.click_sign_in():
-            print("❌ Could not find sign-in button.")
+        if not self.click_sign_in_button():
+            print("❌ Sign-in button not found.")
             return False
 
         try:
-            # Email
             email_input = self.wait.until(EC.presence_of_element_located((By.ID, "identifierId")))
             email_input.send_keys(self.email)
             email_input.send_keys(Keys.ENTER)
+            print("📧 Email entered.")
             time.sleep(3)
 
-            # Password
-            passwd_input = self.wait.until(EC.presence_of_element_located((By.NAME, "Passwd")))
-            passwd_input.send_keys(self.password)
-            passwd_input.send_keys(Keys.ENTER)
-            print("🔒 Credentials submitted.")
-
+            pw_input = self.wait.until(EC.presence_of_element_located((By.NAME, "Passwd")))
+            pw_input.send_keys(self.password)
+            pw_input.send_keys(Keys.ENTER)
+            print("🔒 Password entered.")
             time.sleep(8)
             return "sign in" not in self.driver.page_source.lower()
         except TimeoutException:
-            print("❌ Timeout during login.")
-            return False
-        except Exception as e:
-            print("❌ Login failed:", e)
+            print("❌ Timeout during login flow.")
             return False
 
+    # ─────────────────────────────
+    # Format & save labs.google cookies
+    # ─────────────────────────────
     def format_labs_cookies(self, cookies):
-        """Filter and format only labs.google cookies into your desired structure."""
         formatted = []
         i = 1
         for c in cookies:
             domain = c.get("domain", "")
             if "labs.google" not in domain:
-                continue  # only keep labs.google cookies
+                continue  # filter only labs.google cookies
 
             expiry = c.get("expiry")
             session = expiry is None
             host_only = not domain.startswith(".")
-            same_site = c.get("sameSite", "unspecified").lower()
+            same_site = (c.get("sameSite") or "unspecified").lower()
             if same_site not in ["lax", "strict", "none"]:
                 same_site = "unspecified"
 
-            item = {
+            cookie_obj = {
                 "domain": domain,
                 **({"expirationDate": float(expiry)} if expiry else {}),
                 "hostOnly": host_only,
@@ -129,19 +154,17 @@ class GoogleLabsLogin:
                 "value": c.get("value"),
                 "id": i
             }
-            formatted.append(item)
+            formatted.append(cookie_obj)
             i += 1
 
         return formatted
 
-    def save_cookies(self, path):
+    def save_cookies(self, file_path):
         all_cookies = self.driver.get_cookies()
         labs_cookies = self.format_labs_cookies(all_cookies)
-
-        with open(path, "w", encoding="utf-8") as f:
+        with open(file_path, "w", encoding="utf-8") as f:
             json.dump(labs_cookies, f, indent=4, ensure_ascii=False)
-
-        print(f"✅ Saved {len(labs_cookies)} labs.google cookies → {path}")
+        print(f"✅ Saved {len(labs_cookies)} labs.google cookies → {file_path}")
 
     def close(self):
         try:
@@ -150,13 +173,17 @@ class GoogleLabsLogin:
             pass
 
 
+# ─────────────────────────────
+# Run everything
+# ─────────────────────────────
 if __name__ == "__main__":
-    password = get_password_from_env()
-    bot = GoogleLabsLogin(EMAIL, password)
+    install_latest_chrome()
+    PASSWORD = get_password_from_env()
+    bot = GoogleLabsLogin(EMAIL, PASSWORD, headless=True)
     try:
         if bot.login():
             bot.save_cookies(OUTPUT_FILE)
         else:
-            print("❌ Login failed — cookies not saved.")
+            print("❌ Login failed; cookies not saved.")
     finally:
         bot.close()
