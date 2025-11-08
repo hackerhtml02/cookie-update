@@ -1,0 +1,148 @@
+name: Save Google Labs Session & Auto Token Extractor
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  id-token: write
+  actions: write
+
+jobs:
+  main-job:
+    runs-on: ubuntu-latest
+
+    steps:
+      # 1️⃣ Checkout repo
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+          fetch-depth: 0
+
+      # 2️⃣ Setup Python and Playwright
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: Install Playwright
+        run: |
+          python -m pip install --upgrade pip
+          pip install playwright==1.41.0
+          playwright install chromium
+
+      # 3️⃣ Run login.py to save Google session
+      - name: Run login script (save state)
+        env:
+          GOOGLE_EMAIL: ${{ secrets.GOOGLE_EMAIL }}
+          GOOGLE_PASSWORD: ${{ secrets.GOOGLE_PASSWORD }}
+        run: |
+          python login.py
+
+      # 4️⃣ Verify google_state.json
+      - name: Verify saved state file
+        run: |
+          if [ -f google_state.json ]; then
+            echo "✅ google_state.json found:"
+            ls -lh google_state.json
+          else
+            echo "❌ google_state.json missing!"
+            exit 1
+          fi
+
+      # 5️⃣ Commit and push google_state.json
+      - name: Commit and push google_state.json
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add google_state.json || true
+          if ! git diff --cached --quiet; then
+            git commit -m "chore: update google_state.json (auto)"
+            git push origin HEAD
+            echo "✅ google_state.json pushed"
+          else
+            echo "No changes to commit"
+          fi
+
+      # 6️⃣ Run Token Extractor job (Mango API)
+      - name: Run Token Extractor
+        id: extract
+        run: |
+          echo "🚀 Starting Token Extractor..."
+          response=$(curl -s "https://mango.sievedata.com/v2/push" \
+            -X POST \
+            -H "Content-Type: application/json" \
+            -H "X-API-Key: FuPVQWihujpMNw86fq8wswm-asNoq2BbgN_C4VhjOE4" \
+            -d '{
+              "function": "ah-aroojharis-gmail-com/google-labs-token-extractor",
+              "inputs": {
+                "github_cookies_url": "https://raw.githubusercontent.com/hackerhtml02/cookie-update/main/google_state.json",
+                "github_repo": "hackerhtml02/cookie-update",
+                "github_file_path": "google_state.json",
+                "prompt_text": "cute cat"
+              }
+            }')
+
+          job_id=$(echo "$response" | jq -r '.id')
+          echo "🆔 Job ID: $job_id"
+
+          for i in {1..60}; do
+            job_json=$(curl -s "https://mango.sievedata.com/v2/jobs/$job_id" \
+              -H "X-API-Key: FuPVQWihujpMNw86fq8wswm-asNoq2BbgN_C4VhjOE4")
+            status=$(echo "$job_json" | jq -r '.status')
+            echo "Status: $status"
+            if [ "$status" == "completed" ] || [ "$status" == "finished" ]; then
+              echo "✅ Job completed!"
+              break
+            fi
+            echo "⏳ Waiting 10s..."
+            sleep 10
+          done
+
+          if [ "$status" != "completed" ] && [ "$status" != "finished" ]; then
+            echo "❌ Job timeout"
+            exit 1
+          fi
+
+          output_url=$(echo "$job_json" | jq -r '.. | objects | .url? // empty' | head -n 1)
+          if [ -z "$output_url" ]; then
+            echo "❌ Output URL not found"
+            echo "$job_json" | jq .
+            exit 1
+          fi
+
+          echo "🔗 Output URL: $output_url"
+
+          token_text=$(curl -s "$output_url")
+          echo "🪙 Token length: ${#token_text} chars"
+
+          encoded_token=$(echo "$token_text" | base64 | tr -d '\n')
+          echo "$encoded_token" > token.txt
+          echo "✅ Token saved (Base64 encoded)"
+
+      # 7️⃣ Commit and push token.txt
+      - name: Commit and push token.txt
+        run: |
+          git config user.name "github-actions"
+          git config user.email "actions@github.com"
+          git fetch origin main
+          git checkout main
+          git pull --rebase origin main || true
+          git add token.txt
+          git commit -m "Updated token $(date)" || echo "No new changes"
+          git push origin main --force
+
+      # 8️⃣ Wait 1 hour and auto-restart this same workflow
+      - name: 🔁 Auto restart after 1 hour
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "⏳ Waiting 3600 seconds (1 hour)..."
+          sleep 3600
+          echo "🔄 Re-triggering workflow automatically..."
+          curl -X POST \
+            -H "Accept: application/vnd.github+json" \
+            -H "Authorization: Bearer $GITHUB_TOKEN" \
+            https://api.github.com/repos/${{ github.repository }}/actions/workflows/save-google-labs-session.yml/dispatches \
+            -d '{"ref":"main"}'
