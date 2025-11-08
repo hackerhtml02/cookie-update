@@ -13,7 +13,7 @@ from selenium.webdriver.chrome.options import Options
 from webdriver_manager.chrome import ChromeDriverManager
 
 # ----------------------------------------
-# Hardcoded email
+# Hardcoded email (edit this if needed)
 # ----------------------------------------
 HARDCODE_EMAIL = "muhammadharis8765@imagescraftai.live"
 # ----------------------------------------
@@ -28,27 +28,26 @@ def get_password():
 
 
 class GoogleLabsTokenExtractor:
-    def __init__(self, email, password, headless=True):
+    def __init__(self, email, password):
         self.email = email
         self.password = password
-        self.headless = headless
         self.setup_driver()
 
     def setup_driver(self):
+        """Initialize headless Chrome WebDriver."""
         options = Options()
         options.add_argument("--no-sandbox")
         options.add_argument("--disable-dev-shm-usage")
         options.add_argument("--disable-blink-features=AutomationControlled")
-        options.add_experimental_option("excludeSwitches", ["enable-automation"])
-        options.add_experimental_option("useAutomationExtension", False)
+        options.add_argument("--disable-gpu")
         options.add_argument("--incognito")
-        if self.headless:
-            options.add_argument("--headless=new")
+        options.add_argument("--headless=new")  # ✅ Headless by default
+        options.add_argument("--window-size=1920,1080")
 
         service = Service(ChromeDriverManager().install())
         self.driver = webdriver.Chrome(service=service, options=options)
         self.wait = WebDriverWait(self.driver, 30)
-        print("✅ Chrome WebDriver started.")
+        print("✅ Headless Chrome WebDriver started.")
 
     def save_cookies(self):
         """Save or update cookies.json in repo root."""
@@ -57,7 +56,7 @@ class GoogleLabsTokenExtractor:
             cookies = self.driver.get_cookies()
             with open(output_path, "w", encoding="utf-8") as f:
                 json.dump(cookies, f, indent=2, ensure_ascii=False)
-            print(f"💾 cookies.json saved/updated successfully at: {output_path}")
+            print(f"💾 cookies.json saved/updated at: {output_path}")
         except Exception as e:
             print("⚠️ Could not save cookies:", e)
 
@@ -72,39 +71,41 @@ class GoogleLabsTokenExtractor:
             self.save_cookies()
             return True
 
-        # Enter email (using ID)
+        # Enter email by ID
         try:
             email_input = self.wait.until(EC.presence_of_element_located((By.ID, "identifierId")))
             email_input.clear()
             email_input.send_keys(self.email)
             email_input.send_keys(Keys.ENTER)
-            print("📧 Email entered (using ID: identifierId)")
+            print("📧 Email entered (ID: identifierId)")
             time.sleep(2)
         except Exception as e:
-            print("❌ Email field not found by ID:", e)
+            print("❌ Email input not found by ID:", e)
             return False
 
-        # Enter password (using NAME)
+        # Enter password by NAME
         try:
             password_input = self.wait.until(EC.presence_of_element_located((By.NAME, "Passwd")))
             password_input.clear()
             password_input.send_keys(self.password)
             password_input.send_keys(Keys.ENTER)
-            print("🔒 Password entered (using NAME: Passwd)")
+            print("🔒 Password entered (NAME: Passwd)")
             time.sleep(3)
             self.save_cookies()
             return True
         except Exception as e:
-            print("❌ Password field not found by NAME:", e)
+            print("❌ Password input not found by NAME:", e)
             return False
 
     def run(self):
+        """Run login flow and save cookies."""
         try:
             self.signin()
             time.sleep(2)
         finally:
             try:
                 self.driver.quit()
+                print("🧹 Browser closed.")
             except:
                 pass
 
@@ -113,5 +114,5 @@ if __name__ == "__main__":
     PASSWORD = get_password()
     EMAIL = HARDCODE_EMAIL
     print(f"Using email: {EMAIL}")
-    extractor = GoogleLabsTokenExtractor(EMAIL, PASSWORD, headless=True)
+    extractor = GoogleLabsTokenExtractor(EMAIL, PASSWORD)
     extractor.run()
