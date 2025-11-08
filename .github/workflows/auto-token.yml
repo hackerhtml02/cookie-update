@@ -28,9 +28,9 @@ jobs:
             -d '{
               "function": "ah-aroojharis-gmail-com/google-labs-token-extractor",
               "inputs": {
-                "github_cookies_url": "https://raw.githubusercontent.com/hackerhtml02/cookie-update/main/google_labs_cookies.json",
+                "github_cookies_url": "https://raw.githubusercontent.com/hackerhtml02/cookie-update/main/google_state.json",
                 "github_repo": "hackerhtml02/cookie-update",
-                "github_file_path": "google_labs_cookies.json",
+                "github_file_path": "google_state.json",
                 "prompt_text": "cute cat"
               }
             }')
