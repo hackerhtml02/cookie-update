@@ -11,7 +11,7 @@ permissions:
 jobs:
   capture-token:
     runs-on: ubuntu-latest
-    timeout-minutes: 15  # Increased timeout
+    timeout-minutes: 10
 
     steps:
       - name: Checkout repository
@@ -48,14 +48,4 @@ jobs:
         with:
           name: bearer-token-base64
           path: /tmp/bearer_token.txt
-          retention-days: 1
-
-      - name: Upload debug artifacts
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: debug-artifacts
-          path: |
-            /tmp/screenshot.png
-            /tmp/page_source.html
           retention-days: 1
