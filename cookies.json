@@ -1,1 +1,22 @@
-
+[
+  {
+    "domain": ".google.com",
+    "expiry": 1778438279,
+    "httpOnly": true,
+    "name": "NID",
+    "path": "/",
+    "sameSite": "Lax",
+    "secure": false,
+    "value": "526=nckgXKZf2oDAEkQCiQR_bGw5ayM0wWIYkTwP79D_GJmDNXboVjwvetjZmttdO4BnqvMbtNYNYS5mkOsE_-N8_E2n717yArDmZabwwc8szF8jKbqSDJ34fnxnp_FP7MrvCqQnLzNb_g6NUfGxS5_w2mZAVWukiRplm7vRSkRY3bUlzGLuN1arywLYYRGanwnqTN956g"
+  },
+  {
+    "domain": "accounts.google.com",
+    "expiry": 1797187084,
+    "httpOnly": true,
+    "name": "__Host-GAPS",
+    "path": "/",
+    "sameSite": "Lax",
+    "secure": true,
+    "value": "1:Gk_VJoelsy7eIVocIna7TEN6v9qnCg:HO9bdHZhdKpE2m3X"
+  }
+]
