@@ -1,0 +1,39 @@
+name: Google Labs Login and Upload
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 2 * * *"  # runs daily at 2am UTC
+
+jobs:
+  run-login-upload:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Chrome
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -qqy wget gnupg ca-certificates fonts-liberation \
+            libasound2 libatk-bridge2.0-0 libatk1.0-0 libdrm2 libgbm1 libgtk-3-0 \
+            libnspr4 libnss3 libu2f-udev xdg-utils
+          wget -q -O /usr/share/keyrings/google-linux-signing-key.gpg https://dl.google.com/linux/linux_signing_key.pub
+          echo 'deb [arch=amd64 signed-by=/usr/share/keyrings/google-linux-signing-key.gpg] http://dl.google.com/linux/chrome/deb/ stable main' | sudo tee /etc/apt/sources.list.d/google-chrome.list
+          sudo apt-get update -qq && sudo apt-get install -qqy google-chrome-stable
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: Install dependencies
+        run: pip install selenium requests
+
+      - name: Run Google Labs Automation
+        env:
+          EMAIL: ${{ secrets.EMAIL }}
+          PASSWORD: ${{ secrets.PASSWORD }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: python google_labs_login.py
