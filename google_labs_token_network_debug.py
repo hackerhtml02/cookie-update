@@ -13,12 +13,13 @@ from selenium.webdriver.chrome.options import Options
 from webdriver_manager.chrome import ChromeDriverManager
 
 # ----------------------------------------
-# Hardcoded email (edit if needed)
+# Hardcoded email
 # ----------------------------------------
 HARDCODE_EMAIL = "muhammadharis8765@imagescraftai.live"
 # ----------------------------------------
 
 def get_password():
+    """Fetch password from environment variable."""
     pwd = os.getenv("PASSWORD") or os.getenv("GOOGLE_PASSWORD")
     if not pwd:
         print("❌ ERROR: PASSWORD not found in environment variables.")
@@ -50,65 +51,67 @@ class GoogleLabsTokenExtractor:
         print("✅ Chrome WebDriver started.")
 
     def save_cookies(self):
-        """Save cookies to cookies.json in repo root (create or update)."""
+        """Save or update cookies.json in repo root."""
         try:
             output_path = os.path.join(os.getcwd(), "cookies.json")
             cookies = self.driver.get_cookies()
             with open(output_path, "w", encoding="utf-8") as f:
                 json.dump(cookies, f, indent=2, ensure_ascii=False)
-            print(f"💾 cookies.json saved/updated at: {output_path}")
+            print(f"💾 cookies.json saved/updated successfully at: {output_path}")
         except Exception as e:
             print("⚠️ Could not save cookies:", e)
 
     def signin(self):
-        """Sign in to Google Labs."""
+        """Sign in to Google Labs using hardcoded email & secret password."""
         self.driver.get("https://labs.google/fx/tools/flow")
         time.sleep(3)
 
-        # Check if already signed in
+        # If already signed in
         if "sign in" not in self.driver.page_source.lower():
             print("✅ Already logged in or no sign-in required.")
             self.save_cookies()
             return True
 
-        # Enter email
+        # Enter email (using ID)
         try:
-            email_input = self.wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, "input[type='email']")))
+            email_input = self.wait.until(EC.presence_of_element_located((By.ID, "identifierId")))
+            email_input.clear()
             email_input.send_keys(self.email)
             email_input.send_keys(Keys.ENTER)
-            print("📧 Email entered.")
+            print("📧 Email entered (using ID: identifierId)")
             time.sleep(2)
         except Exception as e:
-            print("❌ Email input not found:", e)
+            print("❌ Email field not found by ID:", e)
             return False
 
-        # Enter password
+        # Enter password (using NAME)
         try:
-            password_input = self.wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, "input[type='password']")))
+            password_input = self.wait.until(EC.presence_of_element_located((By.NAME, "Passwd")))
+            password_input.clear()
             password_input.send_keys(self.password)
             password_input.send_keys(Keys.ENTER)
-            print("🔒 Password submitted.")
+            print("🔒 Password entered (using NAME: Passwd)")
             time.sleep(3)
             self.save_cookies()
             return True
         except Exception as e:
-            print("❌ Password input not found:", e)
+            print("❌ Password field not found by NAME:", e)
             return False
 
     def run(self):
-        """Main run logic."""
         try:
             self.signin()
             time.sleep(2)
         finally:
             try:
                 self.driver.quit()
-            except Exception:
+            except:
                 pass
 
 
 if __name__ == "__main__":
     PASSWORD = get_password()
-    print(f"Using email: {HARDCODE_EMAIL}")
-    extractor = GoogleLabsTokenExtractor(HARDCODE_EMAIL, PASSWORD, headless=True)
+    EMAIL = HARDCODE_EMAIL
+    print(f"Using email: {EMAIL}")
+    extractor = GoogleLabsTokenExtractor(EMAIL, PASSWORD, headless=True)
     extractor.run()
