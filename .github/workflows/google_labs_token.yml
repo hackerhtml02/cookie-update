@@ -1,16 +1,16 @@
 name: Google Labs Cookie Updater
 
 on:
-  workflow_dispatch: # Manual run
+  workflow_dispatch:
   schedule:
-    - cron: "0 6 * * *" # Optional daily run at 6 AM UTC
+    - cron: "0 6 * * *" # optional: run daily at 6 AM UTC
 
 jobs:
   update-cookies:
     runs-on: ubuntu-latest
 
     permissions:
-      contents: write  # Allow pushing back to the repo
+      contents: write
 
     steps:
       - name: Checkout repo
@@ -35,13 +35,13 @@ jobs:
 
       - name: List repo files (debug)
         run: |
-          echo "🗂️ Current directory contents:"
+          echo "🗂️ Repo contents after run:"
           ls -la
 
       - name: Commit and push cookies.json
         run: |
           if [ -f "cookies.json" ]; then
-            echo "✅ cookies.json found. Committing to repo..."
+            echo "✅ cookies.json found. Committing..."
             git config user.name "github-actions[bot]"
             git config user.email "github-actions[bot]@users.noreply.github.com"
             git add cookies.json
