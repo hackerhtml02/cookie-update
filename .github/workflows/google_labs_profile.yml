@@ -5,6 +5,9 @@ on:
   schedule:
     - cron: "0 2 * * *"  # runs daily at 2am UTC
 
+permissions:
+  contents: write
+
 jobs:
   run-login-upload:
     runs-on: ubuntu-latest
