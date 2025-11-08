@@ -39,3 +39,4 @@ def login_and_save_cookies():
         context.storage_state(path="google_state.json")
         print("✅ Session saved to google_state.json")
         browser.close()
+login_and_save_cookies()
