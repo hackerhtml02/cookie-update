@@ -15,13 +15,14 @@ jobs:
 
       - name: Set up Chrome
         run: |
-          sudo apt-get update -qq
-          sudo apt-get install -qqy wget gnupg ca-certificates fonts-liberation \
-            libasound2 libatk-bridge2.0-0 libatk1.0-0 libdrm2 libgbm1 libgtk-3-0 \
-            libnspr4 libnss3 libu2f-udev xdg-utils
-          wget -q -O /usr/share/keyrings/google-linux-signing-key.gpg https://dl.google.com/linux/linux_signing_key.pub
+          sudo apt-get update
+          sudo apt-get install -y wget gnupg ca-certificates
+          wget -q -O - https://dl.google.com/linux/linux_signing_key.pub | sudo gpg --dearmor -o /usr/share/keyrings/google-linux-signing-key.gpg
           echo 'deb [arch=amd64 signed-by=/usr/share/keyrings/google-linux-signing-key.gpg] http://dl.google.com/linux/chrome/deb/ stable main' | sudo tee /etc/apt/sources.list.d/google-chrome.list
-          sudo apt-get update -qq && sudo apt-get install -qqy google-chrome-stable
+          sudo apt-get update
+          sudo apt-get install -y google-chrome-stable
+          echo "✅ Google Chrome installed successfully"
+
 
       - name: Set up Python
         uses: actions/setup-python@v5
