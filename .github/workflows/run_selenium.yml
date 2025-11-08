@@ -11,7 +11,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout repository
+      - name: Checkout repo
         uses: actions/checkout@v4
 
       - name: Set up Python
@@ -27,16 +27,14 @@ jobs:
           sudo apt install -y ./google-chrome-stable_current_amd64.deb
           google-chrome --version
 
-      # ⛔ Remove the manual ChromeDriver install step
-      # webdriver-manager will handle it automatically
-
       - name: Install dependencies
         run: |
+          python -m pip install --upgrade pip
           pip install selenium webdriver-manager
 
       - name: Run Selenium Script
         env:
-          EMAIL: "muhammadharis8765@imagescraftai.live"
+          # password comes from GitHub secret
           PASSWORD: ${{ secrets.GOOGLE_PASSWORD }}
         run: |
           python google_labs_token.py
