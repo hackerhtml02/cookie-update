@@ -1,7 +1,6 @@
 import os
 import time
 import base64
-import zipfile
 import requests
 from selenium import webdriver
 from selenium.webdriver.common.by import By
@@ -36,11 +35,14 @@ def google_labs_login_and_capture_token(github_repo, prompt_text="Generate a cre
     wait = WebDriverWait(driver, 30)
 
     def inject_interceptor():
+        """Network interceptor to capture Authorization header"""
         js = """
         (function() {
             if (window.__capture_installed) return;
             window.__capture_installed = true;
             window.__capturedAuthToken = null;
+            
+            // Intercept fetch requests
             const origFetch = window.fetch.bind(window);
             window.fetch = function() {
                 const args = Array.from(arguments);
@@ -49,15 +51,19 @@ def google_labs_login_and_capture_token(github_repo, prompt_text="Generate a cre
                     for (let k in opts.headers) {
                         if (k.toLowerCase() === 'authorization') {
                             window.__capturedAuthToken = opts.headers[k];
+                            console.log('🔑 Token captured from fetch:', opts.headers[k].substring(0, 50) + '...');
                         }
                     }
                 }
                 return origFetch.apply(this, args);
             };
+            
+            // Intercept XMLHttpRequest
             const origXHR = XMLHttpRequest.prototype.setRequestHeader;
             XMLHttpRequest.prototype.setRequestHeader = function(header, value) {
                 if (header.toLowerCase() === 'authorization') {
                     window.__capturedAuthToken = value;
+                    console.log('🔑 Token captured from XHR:', value.substring(0, 50) + '...');
                 }
                 return origXHR.apply(this, arguments);
             };
@@ -67,36 +73,22 @@ def google_labs_login_and_capture_token(github_repo, prompt_text="Generate a cre
         print("✅ Network interceptor installed")
     
     def get_token():
+        """Get captured token from browser"""
         token = driver.execute_script("return window.__capturedAuthToken || null;")
         if token and token.lower().startswith("bearer "):
             token = token.split(" ", 1)[1].strip()
         return token
-    
-    def save_debug_screenshot(name):
-        try:
-            screenshot_path = f"/tmp/{name}.png"
-            driver.save_screenshot(screenshot_path)
-            print(f"📸 Screenshot saved: {screenshot_path}")
-        except:
-            pass
-    
-    def save_page_source(name):
-        try:
-            html_path = f"/tmp/{name}.html"
-            with open(html_path, "w", encoding="utf-8") as f:
-                f.write(driver.page_source)
-            print(f"📄 Page source saved: {html_path}")
-        except:
-            pass
 
     try:
         print("🌐 Opening Google Labs...")
         driver.get("https://labs.google/fx/tools/flow")
         time.sleep(3)
 
+        # Login if needed
         if "sign in" in driver.page_source.lower():
             print("🔐 Logging in...")
             driver.find_element(By.XPATH, "//button[contains(., 'Sign in')]").click()
+            
             email_box = wait.until(EC.presence_of_element_located((By.ID, "identifierId")))
             email_box.send_keys(EMAIL)
             email_box.send_keys(Keys.ENTER)
@@ -112,142 +104,209 @@ def google_labs_login_and_capture_token(github_repo, prompt_text="Generate a cre
         print("✅ Logged in successfully!")
         time.sleep(5)
         
-        # Save debug info
-        save_debug_screenshot("after_login")
-        save_page_source("after_login")
-        
-        # Inject interceptor early
+        # Inject network interceptor ASAP
         inject_interceptor()
+        print("🔧 Token capture mechanism activated")
         
-        # Check for "Get started" button
-        print("🔍 Checking for 'Get started' button...")
+        # ==========================================
+        # STEP 1: Click "Get started" button (if exists)
+        # ==========================================
+        print("\n🔍 STEP 1: Checking for 'Get started' button...")
         get_started_selectors = [
             "//button[contains(translate(., 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz'), 'get started')]",
-            "//button[contains(translate(., 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz'), 'start')]",
+            "//button[contains(text(), 'Get started')]",
+            "//div[contains(text(), 'Get started')]//ancestor::button",
             "button[class*='iRlAqv']",
             "//button[contains(@class, 'sc-c177465c')]",
         ]
         
+        get_started_clicked = False
         for sel in get_started_selectors:
             try:
                 if sel.startswith("//"):
-                    el = driver.find_element(By.XPATH, sel)
+                    el = wait.until(EC.element_to_be_clickable((By.XPATH, sel)))
                 else:
-                    el = driver.find_element(By.CSS_SELECTOR, sel)
+                    el = wait.until(EC.element_to_be_clickable((By.CSS_SELECTOR, sel)))
+                
                 driver.execute_script("arguments[0].scrollIntoView(true);", el)
-                time.sleep(1)
+                time.sleep(0.5)
                 driver.execute_script("arguments[0].click();", el)
-                print(f"✅ Clicked 'Get started' button: {sel}")
+                print(f"✅ 'Get started' button clicked: {sel}")
+                get_started_clicked = True
                 time.sleep(4)
-                save_debug_screenshot("after_get_started")
+                
+                # Re-inject interceptor after page change
+                inject_interceptor()
                 break
-            except:
+            except Exception as e:
                 continue
         
-        # Try direct navigation to project page
-        print("🔄 Trying direct navigation to project page...")
-        driver.get("https://labs.google/fx/tools/flow/projects")
-        time.sleep(5)
-        save_debug_screenshot("project_page")
+        if not get_started_clicked:
+            print("ℹ️  'Get started' button not found - proceeding to next step")
         
-        # Re-inject interceptor after navigation
-        inject_interceptor()
+        # ==========================================
+        # STEP 2: Click "New Project" button
+        # ==========================================
+        print("\n🔍 STEP 2: Searching for 'New Project' button...")
+        new_proj_selectors = [
+            "//button[contains(translate(., 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz'), 'new project')]",
+            "//button[contains(text(), 'New project')]",
+            "//div[contains(text(), 'New project')]//ancestor::button",
+            "button[data-testid='new-project-button']",
+            "//button[contains(@class, 'new-project')]",
+            "button.sc-c177465c-1",
+        ]
         
-        # Look for any button or clickable element
-        print("🔍 Searching for interactive elements...")
-        all_buttons = driver.find_elements(By.CSS_SELECTOR, "button, a[role='button'], div[role='button']")
-        print(f"📊 Found {len(all_buttons)} buttons/clickable elements")
-        
-        for i, btn in enumerate(all_buttons[:10]):
+        new_project_clicked = False
+        for sel in new_proj_selectors:
             try:
-                text = btn.text.lower() if btn.text else ""
-                print(f"  Button {i+1}: '{text[:50]}...'")
-                if any(kw in text for kw in ["new", "create", "project", "start"]):
-                    print(f"  ✅ Clicking button {i+1}: '{text[:50]}'")
-                    driver.execute_script("arguments[0].scrollIntoView(true);", btn)
+                if sel.startswith("//"):
+                    el = wait.until(EC.element_to_be_clickable((By.XPATH, sel)))
+                else:
+                    el = wait.until(EC.element_to_be_clickable((By.CSS_SELECTOR, sel)))
+                
+                driver.execute_script("arguments[0].scrollIntoView(true);", el)
+                time.sleep(0.5)
+                driver.execute_script("arguments[0].click();", el)
+                print(f"✅ 'New Project' button clicked: {sel}")
+                new_project_clicked = True
+                time.sleep(4)
+                
+                # Re-inject interceptor
+                inject_interceptor()
+                break
+            except Exception as e:
+                continue
+        
+        if not new_project_clicked:
+            print("⚠️  Warning: Could not click 'New Project' button")
+            print("🔄 Trying alternative approach...")
+            
+            # Try finding any button with "new" or "create" text
+            try:
+                all_buttons = driver.find_elements(By.CSS_SELECTOR, "button")
+                for btn in all_buttons:
+                    text = btn.text.lower() if btn.text else ""
+                    if any(kw in text for kw in ["new", "create", "project", "start"]):
+                        driver.execute_script("arguments[0].click();", btn)
+                        print(f"✅ Clicked button with text: '{btn.text[:30]}'")
+                        time.sleep(4)
+                        inject_interceptor()
+                        break
+            except:
+                pass
+        
+        # ==========================================
+        # STEP 3: Enter prompt to trigger API
+        # ==========================================
+        print("\n📝 STEP 3: Entering prompt...")
+        prompt_submitted = False
+        
+        prompt_selectors = [
+            "textarea",
+            "input[type='text']",
+            "div[role='textbox']",
+            "div[contenteditable='true']",
+            "[placeholder*='prompt']",
+            "[placeholder*='enter']",
+        ]
+        
+        for sel in prompt_selectors:
+            try:
+                fields = driver.find_elements(By.CSS_SELECTOR, sel)
+                if fields:
+                    field = fields[0]
+                    driver.execute_script("arguments[0].scrollIntoView(true);", field)
+                    driver.execute_script("arguments[0].focus();", field)
                     time.sleep(0.5)
-                    driver.execute_script("arguments[0].click();", btn)
+                    
+                    field.send_keys(prompt_text)
+                    print(f"✅ Prompt entered: '{prompt_text[:50]}...'")
+                    time.sleep(1)
+                    
+                    field.send_keys(Keys.ENTER)
+                    print("✅ Prompt submitted (Enter key pressed)")
+                    prompt_submitted = True
                     time.sleep(3)
-                    save_debug_screenshot(f"after_button_{i+1}")
                     break
             except Exception as e:
-                print(f"  ⚠️ Error with button {i+1}: {e}")
                 continue
         
-        # Wait for token
-        print("⏳ Waiting for Authorization token...")
+        if not prompt_submitted:
+            print("⚠️  Warning: Could not submit prompt")
+        
+        # ==========================================
+        # STEP 4: Wait for token capture
+        # ==========================================
+        print("\n⏳ STEP 4: Waiting for Authorization token...")
         token = None
-        for i in range(60):
+        max_wait_time = 40
+        
+        for i in range(max_wait_time):
             token = get_token()
             if token:
                 print(f"✅ Token captured after {i+1} seconds!")
+                print(f"📊 Token preview: {token[:50]}...")
                 break
             time.sleep(1)
+            
+            # Show progress every 5 seconds
+            if (i + 1) % 5 == 0:
+                print(f"  ⏱️  Still waiting... ({i+1}/{max_wait_time} seconds)")
         
-        # If no token, try triggering API by typing in any input field
+        # Last attempt - try clicking submit/generate buttons
         if not token:
-            print("🔄 Attempting to trigger API by interacting with input fields...")
+            print("\n🔄 Last attempt: Looking for submit/generate buttons...")
             try:
-                inputs = driver.find_elements(By.CSS_SELECTOR, "input[type='text'], textarea, div[contenteditable='true'], div[role='textbox']")
-                print(f"📊 Found {len(inputs)} input fields")
-                for inp in inputs[:5]:
-                    try:
-                        driver.execute_script("arguments[0].scrollIntoView(true);", inp)
-                        driver.execute_script("arguments[0].focus();", inp)
-                        driver.execute_script("arguments[0].value = 'test';", inp)
-                        inp.send_keys(Keys.ENTER)
-                        print("  ✅ Triggered input field")
-                        time.sleep(3)
+                submit_buttons = driver.find_elements(By.CSS_SELECTOR, "button")
+                for btn in submit_buttons:
+                    text = btn.text.lower() if btn.text else ""
+                    if any(kw in text for kw in ["generate", "submit", "send", "create"]):
+                        driver.execute_script("arguments[0].click();", btn)
+                        print(f"✅ Clicked: '{btn.text}'")
+                        time.sleep(5)
                         token = get_token()
                         if token:
-                            print("✅ Token captured after input interaction!")
                             break
-                    except:
-                        continue
-            except Exception as e:
-                print(f"⚠️ Input interaction failed: {e}")
-        
-        # Last resort - try to navigate to a known API endpoint
-        if not token:
-            print("🔄 Last resort - trying to load API endpoint directly...")
-            try:
-                driver.execute_script("""
-                fetch('https://labs.google/fx/api/v1/projects', {
-                    method: 'GET',
-                    headers: {'Authorization': 'Bearer dummy'}
-                }).catch(() => {});
-                """)
-                time.sleep(5)
-                token = get_token()
             except:
                 pass
         
         if not token:
-            save_page_source("final_page")
-            save_debug_screenshot("final_page")
-            raise RuntimeError("❌ No token captured - debug files saved to /tmp/")
+            print("\n❌ No token captured!")
+            print("💡 Possible reasons:")
+            print("   1. No API requests were triggered")
+            print("   2. Page structure has changed")
+            print("   3. Authorization header not present in requests")
+            raise RuntimeError("No token captured - check debug output above")
         
-        # Encode token
-        print("🔐 Encoding token with Base64...")
+        # ==========================================
+        # STEP 5: Encode and save token
+        # ==========================================
+        print("\n🔐 STEP 5: Encoding token with Base64...")
         encoded_token = base64.b64encode(token.encode('utf-8')).decode('utf-8')
         
-        # Save encoded token
         token_path = "/tmp/bearer_token.txt"
         with open(token_path, "w", encoding="utf-8") as f:
             f.write(encoded_token)
-        print(f"💾 Base64 encoded token saved to: {token_path}")
-        print(f"📊 Token length: {len(token)} → Encoded length: {len(encoded_token)}")
         
-        # Upload to GitHub
-        print("📤 Uploading encoded token to GitHub Release...")
+        print(f"💾 Token saved to: {token_path}")
+        print(f"📊 Original length: {len(token)} chars")
+        print(f"📊 Encoded length: {len(encoded_token)} chars")
+        
+        # ==========================================
+        # STEP 6: Upload to GitHub Release
+        # ==========================================
+        print("\n📤 STEP 6: Uploading to GitHub Release...")
         upload_to_github_release(github_repo, token_path, GITHUB_TOKEN)
         
-        print("✅ Workflow completed successfully!")
+        print("\n✅ ========================================")
+        print("✅ WORKFLOW COMPLETED SUCCESSFULLY!")
+        print("✅ ========================================")
 
     except Exception as e:
-        print(f"❌ Error: {e}")
-        save_page_source("error_page")
-        save_debug_screenshot("error_page")
+        print(f"\n❌ ERROR: {e}")
+        import traceback
+        traceback.print_exc()
         raise
     finally:
         try:
@@ -263,6 +322,7 @@ def upload_to_github_release(github_repo, file_path, github_token):
     headers = {"Authorization": f"token {github_token}"}
     release_api = f"https://api.github.com/repos/{github_repo}/releases"
     
+    # Create or get release
     data = {
         "tag_name": github_release_tag,
         "name": github_release_name,
@@ -274,17 +334,20 @@ def upload_to_github_release(github_repo, file_path, github_token):
         existing = requests.get(f"{release_api}/tags/{github_release_tag}", headers=headers)
         if existing.status_code == 200:
             upload_url = existing.json()["upload_url"].split("{")[0]
+            
+            # Delete old token file
             assets = existing.json().get("assets", [])
             for asset in assets:
                 if asset["name"] == "bearer_token.txt":
                     delete_url = f"https://api.github.com/repos/{github_repo}/releases/assets/{asset['id']}"
                     requests.delete(delete_url, headers=headers)
-                    print("🗑️ Deleted old token file")
+                    print("🗑️  Deleted old token file")
         else:
             raise RuntimeError("❌ Failed to create or fetch release: " + resp.text)
     else:
         upload_url = resp.json()["upload_url"].split("{")[0]
 
+    # Upload new token
     with open(file_path, "rb") as f:
         upload_resp = requests.post(
             f"{upload_url}?name=bearer_token.txt",
@@ -295,7 +358,7 @@ def upload_to_github_release(github_repo, file_path, github_token):
     if upload_resp.status_code not in [200, 201]:
         raise RuntimeError(f"❌ Upload failed: {upload_resp.text}")
 
-    print("✅ Base64 encoded token uploaded to GitHub Release successfully!")
+    print("✅ Token uploaded to GitHub Release successfully!")
 
 
 if __name__ == "__main__":
