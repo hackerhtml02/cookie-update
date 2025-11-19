@@ -20,7 +20,7 @@ jobs:
           persist-credentials: true
           fetch-depth: 0
 
-      # 2️⃣ Setup Python and Playwright
+      # 2️⃣ Setup Python + Playwright
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
@@ -32,15 +32,14 @@ jobs:
           pip install playwright==1.41.0
           playwright install chromium
 
-      # 3️⃣ Run login.py to save Google session
+      # 3️⃣ Run login.py
       - name: Run login script (save state)
         env:
           GOOGLE_EMAIL: ${{ secrets.GOOGLE_EMAIL }}
           GOOGLE_PASSWORD: ${{ secrets.GOOGLE_PASSWORD }}
-        run: |
-          python login.py
+        run: python login.py
 
-      # 4️⃣ Verify google_state.json
+      # 4️⃣ Check google_state.json
       - name: Verify saved state file
         run: |
           if [ -f google_state.json ]; then
@@ -51,7 +50,7 @@ jobs:
             exit 1
           fi
 
-      # 5️⃣ Commit and push google_state.json
+      # 5️⃣ Commit & Push
       - name: Commit and push google_state.json
         run: |
           git config user.name "github-actions[bot]"
@@ -60,68 +59,84 @@ jobs:
           if ! git diff --cached --quiet; then
             git commit -m "chore: update google_state.json (auto)"
             git push origin HEAD
-            echo "✅ google_state.json pushed"
           else
             echo "No changes to commit"
           fi
 
-      # 6️⃣ Run Token Extractor job (Mango API)
-      - name: Run Token Extractor
+      # 6️⃣ TOKEN EXTRACTOR with Auto-Retry (3 Attempts)
+      - name: Run Token Extractor (with retry)
         id: extract
         run: |
-          echo "🚀 Starting Token Extractor..."
-          response=$(curl -s "https://mango.sievedata.com/v2/push" \
-            -X POST \
-            -H "Content-Type: application/json" \
-            -H "X-API-Key: FuPVQWihujpMNw86fq8wswm-asNoq2BbgN_C4VhjOE4" \
-            -d '{
-              "function": "ah-aroojharis-gmail-com/google-labs-token-extractor",
-              "inputs": {
-                "github_cookies_url": "https://raw.githubusercontent.com/hackerhtml02/cookie-update/main/google_state.json",
-                "github_repo": "hackerhtml02/cookie-update",
-                "github_file_path": "google_state.json",
-                "prompt_text": "cute cat"
-              }
-            }')
+          API_KEY="FuPVQWihujpMNw86fq8wswm-asNoq2BbgN_C4VhjOE4"
 
-          job_id=$(echo "$response" | jq -r '.id')
-          echo "🆔 Job ID: $job_id"
+          attempt=1
+          max_attempts=3
+          success=0
 
-          for i in {1..60}; do
-            job_json=$(curl -s "https://mango.sievedata.com/v2/jobs/$job_id" \
-              -H "X-API-Key: FuPVQWihujpMNw86fq8wswm-asNoq2BbgN_C4VhjOE4")
-            status=$(echo "$job_json" | jq -r '.status')
-            echo "Status: $status"
-            if [ "$status" == "completed" ] || [ "$status" == "finished" ]; then
-              echo "✅ Job completed!"
+          while [ $attempt -le $max_attempts ]
+          do
+            echo "🔄 Attempt $attempt of $max_attempts"
+
+            response=$(curl -s "https://mango.sievedata.com/v2/push" \
+              -X POST \
+              -H "Content-Type: application/json" \
+              -H "X-API-Key: $API_KEY" \
+              -d '{
+                "function": "ah-aroojharis-gmail-com/google-labs-token-extractor",
+                "inputs": {
+                  "github_cookies_url": "https://raw.githubusercontent.com/hackerhtml02/cookie-update/main/google_state.json",
+                  "github_repo": "hackerhtml02/cookie-update",
+                  "github_file_path": "google_state.json",
+                  "prompt_text": "cute cat"
+                }
+              }')
+
+            job_id=$(echo "$response" | jq -r '.id')
+            echo "🆔 Job ID: $job_id"
+
+            # Poll job status
+            for i in {1..60}; do
+              job_json=$(curl -s "https://mango.sievedata.com/v2/jobs/$job_id" \
+                -H "X-API-Key: $API_KEY")
+              status=$(echo "$job_json" | jq -r '.status')
+              echo "⏳ Status: $status"
+
+              if [ "$status" == "completed" ] || [ "$status" == "finished" ]; then
+                echo "✅ Job completed!"
+                success=1
+                break
+              elif [ "$status" == "error" ]; then
+                echo "❌ Error detected, breaking early..."
+                break
+              fi
+
+              sleep 10
+            done
+
+            # If success break loop
+            if [ $success -eq 1 ]; then
+              echo "🎉 Extractor finished successfully!"
               break
+            else
+              echo "⚠️ Attempt $attempt FAILED — retrying..."
+              attempt=$((attempt + 1))
+              sleep 5
             fi
-            echo "⏳ Waiting 10s..."
-            sleep 10
           done
 
-          if [ "$status" != "completed" ] && [ "$status" != "finished" ]; then
-            echo "❌ Job timeout"
+          if [ $success -ne 1 ]; then
+            echo "❌ All attempts failed!"
             exit 1
           fi
 
+          # Extract token
           output_url=$(echo "$job_json" | jq -r '.. | objects | .url? // empty' | head -n 1)
-          if [ -z "$output_url" ]; then
-            echo "❌ Output URL not found"
-            echo "$job_json" | jq .
-            exit 1
-          fi
-
-          echo "🔗 Output URL: $output_url"
 
           token_text=$(curl -s "$output_url")
-          echo "🪙 Token length: ${#token_text} chars"
+          echo "$token_text" | base64 | tr -d '\n' > token.txt
+          echo "🔐 Token saved!"
 
-          encoded_token=$(echo "$token_text" | base64 | tr -d '\n')
-          echo "$encoded_token" > token.txt
-          echo "✅ Token saved (Base64 encoded)"
-
-      # 7️⃣ Commit and push token.txt
+      # 7️⃣ Save token.txt
       - name: Commit and push token.txt
         run: |
           git config user.name "github-actions"
@@ -133,14 +148,14 @@ jobs:
           git commit -m "Updated token $(date)" || echo "No new changes"
           git push origin main --force
 
-      # 8️⃣ Wait 1 hour and auto-restart this same workflow
-      - name: 🔁 Auto restart after 1 hour
+      # 8️⃣ Auto restart
+      - name: Auto restart after 1 hour
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          echo "⏳ Waiting 18,000 seconds (5 hour)..."
-          sleep 18000
-          echo "🔄 Re-triggering workflow automatically..."
+          echo "⏳ Waiting 1 hour..."
+          sleep 3600
+          echo "🔄 Restarting workflow..."
           curl -X POST \
             -H "Accept: application/vnd.github+json" \
             -H "Authorization: Bearer $GITHUB_TOKEN" \
