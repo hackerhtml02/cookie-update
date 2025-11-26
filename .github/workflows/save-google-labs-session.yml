@@ -149,12 +149,12 @@ jobs:
           git push origin main --force
 
       # 8️⃣ Auto restart
-      - name: Auto restart after 5 hour
+      - name: Auto restart after 3 hour
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          echo "⏳ Waiting 5 hour..."
-          sleep 18000
+          echo "⏳ Waiting 3 hour..."
+          sleep 10800
           echo "🔄 Restarting workflow..."
           curl -X POST \
             -H "Accept: application/vnd.github+json" \
