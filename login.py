@@ -15,7 +15,7 @@ def login_and_save_cookies():
             print("✅ Already logged in")
         else:
             # Click Sign in
-            for sel in ["text=Sign in with Google", "text=Sign in"]:
+            for sel in ["text=Create with Flow", "text=Create with"]:
                 try:
                     page.locator(sel).click(timeout=3000)
                     break
